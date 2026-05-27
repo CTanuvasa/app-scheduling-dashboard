@@ -514,9 +514,11 @@ def build_html(data):
 
     b1, b2, b3 = len(sec1["0-8"]), len(sec1["8-16"]), len(sec1["16-30"])
 
-    # Call Off Aid pool AND with lat/lon (needed for distance sort).
- 
-coa_emps = [e for e in out_emps.values() if e.get("lat") and e.get("lon")]
+    # Call Off Aid + Extra Help Request pool: every officer with a usable
+    # address (lat/lon required for distance sort). We intentionally do NOT
+    # cap by weekly hours - these sections are for coverage emergencies
+    # where finding *anyone* outweighs avoiding overtime.
+    coa_emps = [e for e in emps if e.get("lat") and e.get("lon")]
 
     coa_data = json.dumps({
         "now": data.get("generatedAt"),
@@ -758,7 +760,7 @@ footer strong {{ color: #FF3300; }}
   <div class="titles">
     <h1>Scheduling Dashboard</h1>
     <div class="sub">Region - All Pro Security</div>
-    <div class="gen">Last refreshed: <strong>{gen_label}</strong></div>
+    <div class="gen">Last refreshed: <strong>{gen_label}</strong> <span id="age-indicator"></span></div>
   </div>
 </div>
 <div class="subbar">
@@ -790,7 +792,7 @@ footer strong {{ color: #FF3300; }}
 
 <section id="call-off-aid">
   <div class="sec-head"><h2>Call Off Aid</h2>
-    <span class="meta">{site_count} sites - {coa_emp_count} officers under 32 hrs</span></div>
+    <span class="meta">{site_count} sites - {coa_emp_count} officers in coverage pool</span></div>
   <div class="coa-controls">
     <label for="coa-site">Select Site:</label>
     <select id="coa-site" onchange="renderCallOffAid()">
@@ -1258,6 +1260,33 @@ function enhanceWeeklyTracker() {{
   }}
 }}
 
+// ---------- Live "Last refreshed: ... (X min ago)" indicator ----------
+const BUILD_TS = (COA && COA.now) ? COA.now : Math.floor(Date.now() / 1000);
+
+function formatAge(seconds) {{
+  if (seconds < 60) return "(just now)";
+  if (seconds < 3600) {{
+    const m = Math.round(seconds / 60);
+    return "(" + m + " min ago)";
+  }}
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  if (h < 24) return "(" + h + "h " + m + "m ago)";
+  const d = Math.floor(h / 24);
+  return "(" + d + " day" + (d === 1 ? "" : "s") + " ago)";
+}}
+
+function tickAge() {{
+  const el = document.getElementById("age-indicator");
+  if (!el) return;
+  const ageSec = Math.max(0, Math.floor(Date.now() / 1000) - BUILD_TS);
+  el.textContent = formatAge(ageSec);
+  // Color-code: green when fresh, gold mid, red if stale
+  if (ageSec < 12 * 60) el.style.color = "#1F8A3C";       // <12 min: fresh
+  else if (ageSec < 30 * 60) el.style.color = "#C97B00";  // <30 min: warning
+  else el.style.color = "#FF3300";                         // 30+ min: stale
+}}
+
 // ---------- Silent page reload every 10 minutes ----------
 // The static HTML is rebuilt server-side (GitHub Actions or local server).
 // We just reload the page periodically so users see the freshest snapshot.
@@ -1356,6 +1385,8 @@ document.addEventListener("DOMContentLoaded", function() {{
   enhanceWeeklyTracker();
   restoreCoaSelection();
   scheduleReload();
+  tickAge();
+  setInterval(tickAge, 30 * 1000);
   // Sync the contact log with the Cloudflare KV worker
   if (REMOTE_LOG_URL) {{
     pullRemote();  // initial fetch right away
