@@ -1,0 +1,47 @@
+name: Refresh & Deploy Dashboard
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scheduling-server.py'
+      - 'logo.png'
+      - '.github/workflows/refresh.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build static dashboard from TrackTik
+        env:
+          TT_TENANT:            ${{ secrets.TT_TENANT }}
+          TT_API_CLIENT_ID:     ${{ secrets.TT_API_CLIENT_ID }}
+          TT_API_CLIENT_SECRET: ${{ secrets.TT_API_CLIENT_SECRET }}
+          TT_API_USERNAME:      ${{ secrets.TT_API_USERNAME }}
+          TT_API_PASSWORD:      ${{ secrets.TT_API_PASSWORD }}
+        run: |
+          python scheduling-server.py --build-static
+          mkdir -p _site
+          cp scheduling-dashboard.html _site/index.html
+          cp logo.png _site/logo.png
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy _site --project-name=aps-scheduling-dashboard --branch=main
