@@ -517,7 +517,6 @@ def build_html(data):
     # Call Off Aid pool: only officers under 32 weekly hours (anyone more
     # isn't useful coverage) AND with lat/lon (needed for distance sort).
     coa_emps = [e for e in emps if e.get("lat") and e.get("lon")
-                and e.get("weekHours", 0) <= 32]
     coa_data = json.dumps({
         "now": data.get("generatedAt"),
         "sites": data.get("sites", []),
