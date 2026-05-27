@@ -516,8 +516,7 @@ def build_html(data):
 
     # Call Off Aid pool AND with lat/lon (needed for distance sort).
  
-coa_emps = [e for e in emps if e.get("lat") and e.get("lon")]
-``
+coa_emps = [e for e in out_emps.values() if e.get("lat") and e.get("lon")]
 
     coa_data = json.dumps({
         "now": data.get("generatedAt"),
